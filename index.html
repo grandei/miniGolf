@@ -1,0 +1,226 @@
+<html>
+  <head>
+    <script src="https://aframe.io/releases/1.1.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aframe-physics-system@4.0.1/dist/aframe-physics-system.min.js"></script>
+    <title>VR Golf</title>
+
+    <script>
+
+    AFRAME.registerComponent('aim-tracker', {
+        tick: function () {
+        const ball = document.getElementById('ball');
+        const aim = document.getElementById('aim');
+
+        if (!ball.body) return; // Wait for physics to initialize
+
+        const velocity = ball.body.velocity;
+        const speed = Math.sqrt(
+            velocity.x * velocity.x +
+            velocity.y * velocity.y +
+            velocity.z * velocity.z
+        );
+
+        const threshold = 0.3; // Ball is considered "stopped" below this
+
+        if (speed > threshold) {
+            aim.setAttribute('visible', 'false');
+        } else {
+            aim.setAttribute('visible', 'true');
+
+            // Position aim above current ball position
+            const ballPos = ball.getAttribute('position');
+            aim.setAttribute('position', {
+            x: ballPos.x,
+            y: ballPos.y + 1.5,
+            z: ballPos.z
+            });
+        }
+        }
+    });
+
+    AFRAME.registerComponent('follow-ball', {
+        schema: {
+        target: { type: 'selector' },
+        height: { type: 'number', default: 40 }
+        },
+        tick: function () {
+        const ball = this.data.target;
+        if (!ball) return;
+
+        const ballPos = ball.getAttribute('position');
+        this.el.setAttribute('position', {
+            x: ballPos.x,
+            y: this.data.height,
+            z: ballPos.z
+        });
+        }
+    });
+
+    AFRAME.registerComponent('hole-checker', {
+  schema: {
+    hole: { type: 'selector' },
+    maxSpeed: { type: 'number', default: 5.0 }  // adjust as needed
+  },
+  tick: function () {
+    const ball = this.el;
+    const hole = this.data.hole;
+    const maxSpeed = this.data.maxSpeed;
+
+    if (!ball.body) return;
+
+    const ballPos = ball.object3D.position;
+    const holePos = hole.object3D.position;
+
+    const dx = ballPos.x - holePos.x;
+    const dz = ballPos.z - holePos.z;
+    const distance = Math.sqrt(dx * dx + dz * dz);
+
+    // Get velocity
+    const velocity = ball.body.velocity;
+    const speed = Math.sqrt(velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2);
+
+    // Only fall in if within range and moving slowly
+    if (distance < 0.8 && Math.abs(ballPos.y - holePos.y) < 1 && speed < maxSpeed) {
+      // Stop physics
+      ball.body.velocity.set(0, 0, 0);
+      ball.body.angularVelocity.set(0, 0, 0);
+      ball.removeAttribute('dynamic-body');
+
+      // Animate to hole
+      ball.setAttribute('animation__move', {
+        property: 'position',
+        to: `${holePos.x} ${holePos.y + 0.1} ${holePos.z}`,
+        dur: 1000,
+        easing: 'easeOutQuad'
+      });
+
+      ball.setAttribute('animation__scale', {
+        property: 'scale',
+        to: '0.3 0.3 0.3',
+        dur: 1000,
+        easing: 'easeOutQuad'
+      });
+
+      // Prevent multiple triggers
+      this.el.removeAttribute('hole-checker');
+      console.log('Ball in!');
+    }
+  }
+});
+    </script>
+
+  </head>
+  <body>
+    <a-scene physics="gravity: -9.8; restitution: 0.9" aim-tracker>
+
+        <a-sky color="#9ffefe"></a-sky>
+
+      <!-- Camera -->
+
+      <a-entity id="camera" position="0 40 0" rotation="-90 0 0" camera look-controls-enabled="false" follow-ball="target: #ball; height: 40">
+
+      <!-- Strength Meter -->
+        <a-entity id="meter" position="-3 -1.5 -5" rotation="0 0 0">
+            <a-box id="bar" position="0 0 0" depth="0.01" height="0.1" width="0.5" color="blue"></a-box>
+            <a-box position="0 -1.2 0" rotation="0 0 0" width="0.52" height="2.5" depth="0.08" color="#9ffefe"></a-box>
+            <a-text position="0 -1.1 0.25" scale="0.9 0.9 0.9" value="P\nO\nW\nE\nR\n\n M\nE\nT\nE\nR" color="black"></a-text>
+            <a-text id="strokes" value="Strokes: 0" color="black" position="0 5 0"></a-text> 
+        </a-entity>
+
+      </a-entity>
+
+
+
+
+      <!-- Golf Course -->
+      <a-plane width="15" height="50" color="green" rotation="-90 0 0" static-body></a-plane>
+
+      <!-- Golf Ball -->
+      <a-sphere id="ball" radius="1" color="white" position="0 1 22" dynamic-body="mass: 1; linearDamping: 0.2; angularDamping: 0.4" hole-checker="hole: #hole"></a-sphere>
+
+      <!-- Aim Arrow -->
+      <a-entity id="aim" position="0 1 22" rotation="0 0 0">
+        <a-cylinder height="0.75" radius="0.25" color="red" position="0 2 2" rotation="90 0 0"></a-cylinder>
+      </a-entity>
+
+
+      <!-- Barriers -->
+    <a-entity>
+        <a-box color="brown" width="2" height="3" depth="50" position="-7.5 1.5 0" static-body="mass: 1; linearDamping: 0.2; angularDamping: 0.4;"></a-box>
+        <a-box color="brown" width="2" height="3" depth="50" position="7.5 1.5 0" static-body="mass: 1; linearDamping: 0.2; angularDamping: 0.4;"></a-box>
+        <a-box color="brown" width="13" height="3" depth="2" position="0 1.5 -24" rotation="0 0 0" static-body="mass: 1; linearDamping: 0.2; angularDamping: 0.4;"></a-box>
+        <a-box color="brown" width="13" height="3" depth="2" position="0 1.5 24" rotation="0 0 0" static-body="mass: 1; linearDamping: 0.2; angularDamping: 0.4;"></a-box>
+    
+      </a-entity>
+
+      <a-circle id="hole" radius="1.25" color="black" position="0 0.1 -20" rotation="-90 0 0"></a-circle>
+    </a-scene>
+
+    <script>
+      const aim = document.getElementById('aim');
+      const ball = document.getElementById('ball');
+      const bar = document.getElementById('bar');
+      const stroke = document.getElementById('strokes');
+
+      let strokes = 0;
+      let angle = 0;
+      let strength = 0;
+      let charging = false;
+      let goingUp = true;
+      let chargeInterval;
+
+      document.addEventListener('keydown', e => {
+        if (e.code === 'ArrowLeft') {
+          angle -= 5;
+          aim.setAttribute('rotation', `0 ${angle} 0`);
+        }
+        if (e.code === 'ArrowRight') {
+          angle += 5;
+          aim.setAttribute('rotation', `0 ${angle} 0`);
+        }
+        if (e.code === 'Space' && !charging) {
+          strokes += 1;
+          charging = true;
+          chargeInterval = setInterval(() => {
+            if (goingUp) {
+              strength += 0.1;
+              if (strength >= 5) goingUp = false;
+            } else {
+              strength -= 0.1;
+              if (strength <= 0) goingUp = true;
+            }
+            bar.setAttribute('scale', `1 ${strength * 8} 1`);
+
+          }, 50);
+        }
+      });
+
+      document.addEventListener('keyup', e => {
+        if (e.code === 'Space' && charging) {
+          clearInterval(chargeInterval);
+          charging = false;
+
+          // Calculate direction
+          const rad = AFRAME.THREE.MathUtils.degToRad(angle);
+          const direction = new CANNON.Vec3(-Math.sin(rad), 0, -Math.cos(rad));
+          direction.scale(strength * 5, direction); // scale by strength
+
+          // Apply force to the ball
+          ball.body.velocity.set(0, 0, 0); // reset current velocity
+          ball.body.applyImpulse(direction, ball.body.position);
+
+          // Reset meter
+          strength = 0;
+          goingUp = true;
+          bar.setAttribute('scale', '1 0.1 1');
+          bar.setAttribute('position', '0 0 0');
+          stroke.setAttribute('value', `Strokes: ${strokes}`);
+        }
+      });
+
+
+
+
+    </script>
+  </body>
+</html>
